@@ -111,6 +111,38 @@ refs or retry with a weaker client to bypass a refusal.
 
 ## Existing stores
 
+### Corrected terminal records
+
+From v0.1.0-rc.5, first-parent replay validates historical terminal frontmatter
+and lifecycle facts without requiring a valid `# Resolution` section in every
+old `done` or `cancelled` revision. Correct the section in a new canonical-base
+commit, preserving the task's ID, path and terminal state. Current records still
+require an exact, nonempty `# Resolution`; history is neither rewritten nor
+skipped. Historical nonterminal `# Outcome` and `# Acceptance` sections, project
+records, configuration, record framing and bounds remain validated. Removed or
+reused IDs and terminal removal, reopening, movement or state changes still fail.
+
+This deliberately differs from earlier releases, which reject even corrected
+terminal-section mistakes. Older clients can remain blocked on such a store;
+switching back to an older executable does not undo its history. No wire format
+or coordination ref changes are required. Validate a disposable copy before
+upgrading operators.
+
+Original claimed snapshots remain strictly validated, including their terminal
+records. A later correction cannot repair an invalid original snapshot or refresh
+its acceptance text. Preserve claim/assignment refs and receipts; if a claim's
+original snapshot is invalid, stop and involve the repository owner rather than
+deleting evidence or bypassing validation. After a correction reaches the base,
+use `validate --source base`, `show --json` and `status --json`, then perform the
+normal exact-worker recovery and ownership re-verification.
+
+Record parsing and lifecycle failures identify the immutable commit and path in
+the message and `Error.Details` (`commit`, `path`); existing error classifications
+are preserved. Object-read, framing and aggregate-bound failures may be reported
+at operation level when no individual record can be identified.
+
+### Switching executables
+
 Keep schema-1 configuration, Markdown records, Git objects/refs and local receipts.
 Do not reinitialize or rewrite history to switch binaries. Validate a disposable
 copy first, retain the old executable, and qualify one operator/task before

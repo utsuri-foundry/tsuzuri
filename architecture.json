@@ -270,6 +270,7 @@
             "orphan_test.go",
             "history_probe_test.go",
             "history_test.go",
+            "history_recovery_test.go",
             "protocol_test.go",
             "push_test.go",
             "parsers_test.go",
@@ -306,7 +307,7 @@
          "responsibility" : "Export committed source and prepare identified local prerelease CLI artifacts.",
          "nonResponsibility" : "Installation, signing, publication or migration.",
          "contracts" : "make release-candidate; clean source, pinned compiler, bounded build, checksummed output.",
-         "check" : "make release-candidate VERSION=0.1.0-rc.4"
+         "check" : "make release-candidate VERSION=0.1.0-rc.5"
       }
    ],
    "requiredDocuments" : [

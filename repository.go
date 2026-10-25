@@ -179,7 +179,7 @@ func (r *repository) tree(ctx context.Context, rev string, legacy, history bool)
 	}
 	c, e := parseConfig(configs[0])
 	if e != nil {
-		return nil, e
+		return nil, recordError(commit, ".tsuzuri.toml", e)
 	}
 	i := newInventory(c)
 	i.Source = source("git-tree", c.RepositoryID)
@@ -203,7 +203,7 @@ func (r *repository) tree(ctx context.Context, rev string, legacy, history bool)
 			continue
 		}
 		if f[0] != "100644" && f[0] != "100755" {
-			return nil, invalid("record is not regular blob")
+			return nil, recordError(commit, path, invalid("record is not regular blob"))
 		}
 		paths = append(paths, path)
 		ids = append(ids, f[2])
@@ -217,7 +217,7 @@ func (r *repository) tree(ctx context.Context, rev string, legacy, history bool)
 	}
 	for idx, p := range paths {
 		if e = r.addRecord(i, p, texts[idx], ids[idx], legacy); e != nil {
-			return nil, e
+			return nil, recordError(commit, p, e)
 		}
 	}
 	r.trees[key] = i
