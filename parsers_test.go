@@ -33,6 +33,8 @@ func FuzzCoordinationMetadata(f *testing.F) {
 }
 func FuzzTaskDocument(f *testing.F) {
 	f.Add("")
+	f.Add(historyTerminal())
+	f.Add(strings.ReplaceAll(historyTerminal(), "# Resolution", "# Delivery"))
 	f.Add("+++\nschema = 1\nid = \"task\"\nproject = \"project\"\ntitle = \"Task\"\nkind = \"delivery\"\nstate = \"ready\"\npriority = \"p1\"\nblocked_by = []\nareas = []\nrisks = []\ncreated = 2026-10-24\n+++\n\n# Outcome\n\nChange\n\n# Acceptance\n\n- Tested\n")
 	f.Add("+++\nid = [\n+++\n# Outcome\n")
 	f.Fuzz(func(t *testing.T, body string) {
@@ -40,5 +42,13 @@ func FuzzTaskDocument(f *testing.F) {
 			t.Skip()
 		}
 		_, _ = parseTask(body, "tasks/project/task.task.md", false)
+		strict, strictErr := parseTask(body, "", true)
+		historical, historyErr := parseHistoricalTask(body)
+		if strictErr == nil && (historyErr != nil || strict.ID != historical.ID || strict.State != historical.State) {
+			t.Fatal("historical parsing changed valid identity or state")
+		}
+		if historyErr == nil && !terminal(historical.State) && strictErr != nil {
+			t.Fatal("historical parsing relaxed a nonterminal record")
+		}
 	})
 }

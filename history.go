@@ -2,6 +2,7 @@ package tsuzuri
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -9,7 +10,7 @@ import (
 
 type historyStats struct{ Revisions, ParsedRecords, BlobBytes int }
 
-// Only these facts survive full historical record parsing. Revision-specific
+// Only these facts survive historical record parsing. Revision-specific
 // paths and duplicate checks are never cached with the blob's parse result.
 type historyRecord struct {
 	id, project, state string
@@ -20,6 +21,21 @@ type historyRecordKey struct {
 	project bool
 }
 type historyTask struct{ path, state string }
+type recordLocation struct {
+	Commit string `json:"commit"`
+	Path   string `json:"path"`
+}
+
+func recordError(commit, path string, cause error) *Error {
+	e := invalid("record at commit %s, path %q: %s", commit, path, cause).causedBy(cause)
+	var original *Error
+	if errors.As(cause, &original) {
+		e.Kind, e.Code, e.ExitCode = original.Kind, original.Code, original.ExitCode
+	}
+	e.Details = recordLocation{strings.Clone(commit), strings.Clone(path)}
+	return e
+}
+
 type historyState struct {
 	records          map[string]historyRecord
 	tasks            map[string]historyTask
@@ -40,7 +56,7 @@ func historyRecordBytes(path string, r historyRecord) int {
 	return len(path) + len(r.id) + len(r.project) + len(r.state) + 128
 }
 
-func (s *historyState) apply(root string, changes []historyChange, reset bool, parsed map[historyRecordKey]historyRecord) error {
+func (s *historyState) apply(commit, root string, changes []historyChange, reset bool, parsed map[historyRecordKey]historyRecord) error {
 	before := map[string]historyTask{}
 	remove := func(path string) {
 		if r, ok := s.records[path]; ok {
@@ -68,24 +84,24 @@ func (s *historyState) apply(root string, changes []historyChange, reset bool, p
 		}
 		record, ok := parsed[historyKey(c)]
 		if !ok {
-			return invalid("missing parsed history record")
+			return recordError(commit, c.path, invalid("missing parsed history record"))
 		}
 		want := root + "/" + record.id + "/project.md"
 		if !record.isProject {
 			want = fmt.Sprintf("%s/%s/tasks/%s.task.md", root, record.project, record.id)
 		}
 		if c.path != want {
-			return invalid("invalid historical record path %s", c.path)
+			return recordError(commit, c.path, invalid("invalid historical record path"))
 		}
 		if _, ok = s.records[c.path]; ok {
-			return invalid("duplicate historical record path")
+			return recordError(commit, c.path, invalid("duplicate historical record path"))
 		}
 		if !record.isProject {
 			if _, ok = s.tasks[record.id]; ok {
-				return invalid("duplicate task %s", record.id)
+				return recordError(commit, c.path, invalid("duplicate task %s", record.id))
 			}
 			if _, wasPresent := before[record.id]; s.seen[record.id] && !wasPresent {
-				return invalid("task ID %s was removed and reused", record.id)
+				return recordError(commit, c.path, invalid("task ID %s was removed and reused", record.id))
 			}
 			path := strings.Clone(c.path)
 			s.tasks[record.id] = historyTask{path, record.state}
@@ -93,7 +109,7 @@ func (s *historyState) apply(root string, changes []historyChange, reset bool, p
 		}
 		s.bytes += historyRecordBytes(c.path, record)
 		if s.bytes > maxOutput || len(s.records) >= maxRecords {
-			return invalid("historical inventory exceeds supported bound")
+			return recordError(commit, c.path, invalid("historical inventory exceeds supported bound"))
 		}
 		s.records[strings.Clone(c.path)] = record
 	}
@@ -101,7 +117,7 @@ func (s *historyState) apply(root string, changes []historyChange, reset bool, p
 		if terminal(old.state) {
 			current, ok := s.tasks[id]
 			if !ok || current != old {
-				return invalid("terminal task `%s` changed state or path, or was removed", id)
+				return recordError(commit, old.path, invalid("terminal task `%s` changed state or path, or was removed", id))
 			}
 		}
 	}
@@ -109,7 +125,7 @@ func (s *historyState) apply(root string, changes []historyChange, reset bool, p
 		if !s.seen[id] {
 			s.seenBytes += len(id) + 64
 			if s.seenBytes > maxOutput {
-				return invalid("historical task identities exceed supported bound")
+				return recordError(commit, s.tasks[id].path, invalid("historical task identities exceed supported bound"))
 			}
 			s.seen[id] = true
 		}
@@ -125,13 +141,14 @@ type historyParseCache struct {
 func (r *repository) historyRecords(ctx context.Context, deltas []historyDelta, cache *historyParseCache) (map[historyRecordKey]historyRecord, error) {
 	result := map[historyRecordKey]historyRecord{}
 	wanted := map[string][]historyRecordKey{}
+	locations := map[historyRecordKey]recordLocation{}
 	for _, d := range deltas {
 		for _, c := range d.changes {
 			if c.mode == "000000" {
 				continue
 			}
 			if c.mode != "100644" && c.mode != "100755" {
-				return nil, invalid("record is not regular blob")
+				return nil, recordError(d.commit, c.path, invalid("record is not regular blob"))
 			}
 			key := historyKey(c)
 			if record, ok := cache.records[key]; ok {
@@ -142,6 +159,7 @@ func (r *repository) historyRecords(ctx context.Context, deltas []historyDelta, 
 				continue
 			}
 			result[key] = historyRecord{}
+			locations[key] = recordLocation{d.commit, c.path}
 			wanted[c.object] = append(wanted[c.object], key)
 		}
 	}
@@ -149,18 +167,19 @@ func (r *repository) historyRecords(ctx context.Context, deltas []historyDelta, 
 	err := r.historyBlobs(ctx, sortedKeys(wanted), func(id, body string) error {
 		r.historyStats.BlobBytes += len(body)
 		for _, key := range wanted[id] {
+			location := locations[key]
 			record := historyRecord{isProject: key.project}
 			if key.project {
 				p, err := parseProject(body, "")
 				if err != nil {
-					return err
+					return recordError(location.Commit, location.Path, err)
 				}
 				record.id = strings.Clone(p.ID)
 				record.state = strings.Clone(p.State)
 			} else {
-				t, err := parseTask(body, "", true)
+				t, err := parseHistoricalTask(body)
 				if err != nil {
-					return err
+					return recordError(location.Commit, location.Path, err)
 				}
 				record.id = strings.Clone(t.ID)
 				record.project = strings.Clone(t.Project)
@@ -252,7 +271,7 @@ func (r *repository) historyConfiguration(ctx context.Context, commit, repositor
 			}
 			if p.err != nil {
 				if adoption != "" {
-					return "", nil, nil, p.err
+					return "", nil, nil, recordError(d.commit, ".tsuzuri.toml", p.err)
 				}
 				continue
 			}
@@ -263,7 +282,7 @@ func (r *repository) historyConfiguration(ctx context.Context, commit, repositor
 				adoption = d.commit
 			}
 			if p.config.RepositoryID != repositoryID {
-				return "", nil, nil, invalid("repository_id changed in first-parent history")
+				return "", nil, nil, recordError(d.commit, ".tsuzuri.toml", invalid("repository_id changed in first-parent history"))
 			}
 			configs[d.commit] = p.config
 			roots[p.config.TaskRoot] = true
@@ -376,7 +395,7 @@ func (r *repository) validateHistory(ctx context.Context, commit, repositoryID s
 			if err = ctx.Err(); err != nil {
 				return invalid("history validation cancelled").causedBy(err)
 			}
-			if err = state.apply(batchRoots[j], d.changes, resets[j], parsed); err != nil {
+			if err = state.apply(d.commit, batchRoots[j], d.changes, resets[j], parsed); err != nil {
 				return err
 			}
 			r.historyStats.Revisions++

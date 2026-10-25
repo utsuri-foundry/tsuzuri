@@ -43,6 +43,15 @@ These checks explicitly skip when no binary is supplied. They are supplementary
 evidence, not a Rust build requirement or a substitute for Go regressions.
 `scripts/reproduce-stale-worker.sh` is a local-only regression reproduction.
 
+`history_recovery_test.go` covers corrected terminal sections, retained lifecycle
+and frontmatter refusals, strict original snapshots, diagnostic locations, and
+exact-worker recovery across independent clones. To compare the deliberate
+recovery difference with rc.4, set `TSUZURI_HISTORY_BASELINE` to that executable
+and run `go test -count=1 -run 'TestCorrectedTerminalHistoryRecovery' .`.
+That test expects rc.4 and the optional v0.3.1 reference to reject the repaired
+history; the candidate must accept it without replacing existing ownership.
+The other historical replay cases retain their existing expectations.
+
 Tests target Linux and macOS. Cross-builds do not prove native execution or real
 credential-helper behavior. Record omitted platforms and checks honestly. Fuzz
 seed runs are not fuzz campaigns; module verification is not vulnerability scanning.

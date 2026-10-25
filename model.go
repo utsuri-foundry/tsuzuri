@@ -233,38 +233,9 @@ func parseProject(s, path string) (Project, error) {
 	return p, nil
 }
 func parseTask(s, path string, legacy bool) (Task, error) {
-	var t Task
-	front, body, e := document(s)
+	t, body, e := parseTaskFields(s, legacy)
 	if e != nil {
 		return t, e
-	}
-	if e = decodeTOML(front, &t); e != nil {
-		return t, e
-	}
-	if e = recordCheck(t.Schema, t.ID, t.Title, t.Extensions); e != nil {
-		return t, e
-	}
-	if t.Kind == "" && legacy {
-		t.Kind = "legacy-unclassified"
-	} else if !slices.Contains([]string{"delivery", "defect", "maintenance", "tech-debt", "operations", "research"}, t.Kind) {
-		return t, invalid("kind is required and must be a supported task kind")
-	}
-	if !validID(t.Project) || !slices.Contains([]string{"backlog", "ready", "blocked", "done", "cancelled"}, t.State) || !slices.Contains([]string{"p0", "p1", "p2", "p3"}, t.Priority) {
-		return t, invalid("invalid task project, state or priority")
-	}
-	if t.BlockedBy == nil || t.Areas == nil || t.Risks == nil || !ordered(t.BlockedBy) || !ordered(t.Areas) || !ordered(t.Risks) {
-		return t, invalid("task registries must be supplied, sorted and unique")
-	}
-	t.Created = t.CreatedDate.String()
-	if _, e = time.Parse("2006-01-02", t.Created); e != nil {
-		return t, invalid("created must be a TOML local date")
-	}
-	if t.State == "blocked" {
-		if t.BlockedReason == nil || strings.TrimSpace(*t.BlockedReason) == "" {
-			return t, invalid("blocked_reason required")
-		}
-	} else if t.BlockedReason != nil {
-		return t, invalid("blocked_reason only allowed for blocked tasks")
 	}
 	if terminal(t.State) {
 		e = sections(body, "Resolution")
@@ -276,6 +247,53 @@ func parseTask(s, path string, legacy bool) (Task, error) {
 	}
 	t.Path = path
 	return t, nil
+}
+
+// Historical terminal prose may be corrected later; current and claimed trees
+// always use parseTask. Nonterminal acceptance remains strict in every revision.
+func parseHistoricalTask(s string) (Task, error) {
+	t, body, e := parseTaskFields(s, true)
+	if e != nil || terminal(t.State) {
+		return t, e
+	}
+	return t, sections(body, "Outcome", "Acceptance")
+}
+
+func parseTaskFields(s string, legacy bool) (Task, string, error) {
+	var t Task
+	front, body, e := document(s)
+	if e != nil {
+		return t, "", e
+	}
+	if e = decodeTOML(front, &t); e != nil {
+		return t, "", e
+	}
+	if e = recordCheck(t.Schema, t.ID, t.Title, t.Extensions); e != nil {
+		return t, "", e
+	}
+	if t.Kind == "" && legacy {
+		t.Kind = "legacy-unclassified"
+	} else if !slices.Contains([]string{"delivery", "defect", "maintenance", "tech-debt", "operations", "research"}, t.Kind) {
+		return t, "", invalid("kind is required and must be a supported task kind")
+	}
+	if !validID(t.Project) || !slices.Contains([]string{"backlog", "ready", "blocked", "done", "cancelled"}, t.State) || !slices.Contains([]string{"p0", "p1", "p2", "p3"}, t.Priority) {
+		return t, "", invalid("invalid task project, state or priority")
+	}
+	if t.BlockedBy == nil || t.Areas == nil || t.Risks == nil || !ordered(t.BlockedBy) || !ordered(t.Areas) || !ordered(t.Risks) {
+		return t, "", invalid("task registries must be supplied, sorted and unique")
+	}
+	t.Created = t.CreatedDate.String()
+	if _, e = time.Parse("2006-01-02", t.Created); e != nil {
+		return t, "", invalid("created must be a TOML local date")
+	}
+	if t.State == "blocked" {
+		if t.BlockedReason == nil || strings.TrimSpace(*t.BlockedReason) == "" {
+			return t, "", invalid("blocked_reason required")
+		}
+	} else if t.BlockedReason != nil {
+		return t, "", invalid("blocked_reason only allowed for blocked tasks")
+	}
+	return t, body, nil
 }
 func (i *inventory) validate() error {
 	for _, r := range [][]string{i.Config.Areas, i.Config.Risks} {
