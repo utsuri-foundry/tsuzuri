@@ -46,3 +46,21 @@ evidence, not a Rust build requirement or a substitute for Go regressions.
 Tests target Linux and macOS. Cross-builds do not prove native execution or real
 credential-helper behavior. Record omitted platforms and checks honestly. Fuzz
 seed runs are not fuzz campaigns; module verification is not vulnerability scanning.
+
+The immutable-read regressions cover per-revision validation, strict/legacy
+parsing, cancellation, mutable refs, cache limits and retained malformed claims.
+For an optional local timing/process-count comparison, build the candidate and
+reuse the history probe with a synthetic many-claim fixture (maximum 200):
+
+```sh
+make build
+TSUZURI_HISTORY_PROBE=1 TSUZURI_HISTORY_MODE=claims TSUZURI_HISTORY_SIZE=50 \
+  TSUZURI_HISTORY_BASELINE=/absolute/path/to/rc3-binary \
+  TSUZURI_HISTORY_CANDIDATE="$PWD/bin/tsuzuri" \
+  go test -v -count=1 -timeout 300s -run '^TestHistoryProbe$' .
+```
+
+This fixture includes completed tasks, a malformed claim and a malformed
+assignment. The probe checks identical Go overview JSON data across binaries and
+trials, excluding the per-invocation source envelope. Timings are observations,
+not test thresholds; wrapper overhead and host load affect them.
