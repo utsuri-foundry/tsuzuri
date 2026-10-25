@@ -264,6 +264,7 @@
          ],
          "files" : [
             "git_test.go",
+            "ancestry_test.go",
             "repository_cache_test.go",
             "operation_test.go",
             "orphan_test.go",

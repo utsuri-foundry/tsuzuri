@@ -389,12 +389,24 @@ func (r *repository) validateHistory(ctx context.Context, commit, repositoryID s
 		return err
 	}
 	// The byte-bounded output may include non-record commits; they need no replay.
-	for _, id := range strings.Fields(chain) {
+	parents := strings.Fields(chain)
+	for _, id := range parents {
 		if !validObject(id) {
 			return invalid("invalid history proof revision")
 		}
 		r.histories[id+":"+repositoryID] = true
 	}
 	r.histories[adoption+":"+repositoryID] = true
+	// Only a completed walk proves ancestry to this exact tip. Validation of a
+	// different branch must never imply that its commits belong to this history.
+	for _, id := range append(parents, adoption) {
+		if len(r.cache.firstParents) >= maxCacheEntries {
+			break
+		}
+		if r.cache.firstParents == nil {
+			r.cache.firstParents = map[ancestryKey]struct{}{}
+		}
+		r.cache.firstParents[ancestryKey{strings.Clone(id), strings.Clone(commit)}] = struct{}{}
+	}
 	return nil
 }

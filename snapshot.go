@@ -384,8 +384,12 @@ func (r *repository) drift(ctx context.Context, s *snapshot, m ClaimMetadata) []
 	if m.BaseObjectID == s.base {
 		return drift
 	}
-	out, e := r.exec(ctx, "", nil, "merge-base", "--is-ancestor", m.BaseObjectID, s.base)
-	if e == nil && out.code == 0 {
+	_, ancestor := r.cache.firstParents[ancestryKey{m.BaseObjectID, s.base}]
+	if !ancestor || ctx.Err() != nil {
+		out, e := r.exec(ctx, "", nil, "merge-base", "--is-ancestor", m.BaseObjectID, s.base)
+		ancestor = e == nil && out.code == 0
+	}
+	if ancestor {
 		drift = append(drift, "compatible-base-advancement")
 	} else {
 		drift = append(drift, "history-rewritten")
