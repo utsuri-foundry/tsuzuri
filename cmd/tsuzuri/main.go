@@ -41,6 +41,10 @@ func run(ctx context.Context, args []string) int {
 	if e != nil {
 		return emitError(jsonMode, e)
 	}
+	if invocation.query.Command == "overview" && !jsonMode && invocation.query.Format != "markdown" {
+		_, noColor := os.LookupEnv("NO_COLOR")
+		invocation.query.Color = resolveOverviewColor(invocation.query.Color, isTerminal(os.Stdout), noColor, os.Getenv("TERM"))
+	}
 	client, e := tsuzuri.Open(".")
 	if e != nil {
 		return emitError(jsonMode, e)

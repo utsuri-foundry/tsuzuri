@@ -18,6 +18,16 @@ type invocation struct {
 var coordinateCommands = []string{"claim", "accept", "handoff", "materialize", "release"}
 var queryCommands = []string{"compatibility", "validate", "projects", "project", "list", "next", "show", "status", "doctor", "overview"}
 
+func resolveOverviewColor(mode string, terminal, noColor bool, term string) string {
+	if mode != "" && mode != "auto" {
+		return mode
+	}
+	if terminal && !noColor && term != "dumb" {
+		return "always"
+	}
+	return "never"
+}
+
 func parseInvocation(args []string) (invocation, error) {
 	var v invocation
 	positional := []string{}
