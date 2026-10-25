@@ -1,0 +1,10 @@
+/.direnv/
+/.local/
+/result
+/result-*
+/bin/
+/build/
+/coverage/
+.env
+.env.*
+!.env.example

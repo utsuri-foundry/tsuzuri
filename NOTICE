@@ -1,0 +1,16 @@
+Tsuzuri
+Copyright 2026 Utsuri Foundry, SL
+
+Original project code is offered under the Apache License, Version 2.0.
+Third-party materials retain their own terms and attribution.
+
+Runtime dependencies:
+- github.com/pelletier/go-toml/v2: MIT; Thomas Pelletier.
+- github.com/yuin/goldmark: MIT; Yusuke Inuzuka.
+- Go runtime and standard library: BSD-style; The Go Authors.
+
+Distributed CLI bundles include the full dependency notices in
+THIRD_PARTY_NOTICES.txt. The retained Go notice is docs/licenses/go.txt.
+
+The Go CLI tests derive from earlier Tsuzuri CLI tests, also licensed under
+Apache-2.0 by their owner. Provenance is recorded in tests/README.md.

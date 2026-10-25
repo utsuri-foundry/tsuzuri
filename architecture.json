@@ -1,0 +1,345 @@
+{
+   "classification" : {
+      "facadeDirectories" : [],
+      "facadeFiles" : [
+         "cmd/tsuzuri/main.go",
+         "cmd/tsuzuri/parse.go",
+         "cmd/tsuzuri/input_unix.go",
+         "cmd/tsuzuri/input_other.go",
+         "cmd/check-architecture/main.go"
+      ],
+      "testPathPrefixes" : [
+         "tests",
+         "scripts/reproduce-stale-worker.sh",
+         "examples"
+      ]
+   },
+   "forbiddenModuleNames" : [
+      "common",
+      "helper",
+      "helpers",
+      "misc",
+      "utilities",
+      "utility",
+      "utils"
+   ],
+   "ignoredDirectories" : [
+      ".git",
+      ".direnv",
+      ".local",
+      "build",
+      "coverage",
+      "dist",
+      "node_modules",
+      "result",
+      "target",
+      "vendor",
+      "bin"
+   ],
+   "layers" : [
+      {
+         "allowedImports" : [
+            "fmt",
+            "github.com/pelletier/go-toml/v2",
+            "github.com/yuin/goldmark",
+            "github.com/yuin/goldmark/ast",
+            "github.com/yuin/goldmark/text",
+            "path/filepath",
+            "regexp",
+            "slices",
+            "strings",
+            "time",
+            "unicode"
+         ],
+         "check" : "go test -run Fuzz .",
+         "contracts" : "Config, Task, Project, revision and metadata schemas; parsing has no external effects.",
+         "dependsOn" : [],
+         "files" : [
+            "model.go",
+            "protocol.go",
+            "errors.go",
+            "authoring_encoding.go",
+            "doc.go"
+         ],
+         "name" : "records",
+         "nonResponsibility" : "Git, environment, filesystem I/O, execution authority.",
+         "responsibility" : "Task records, validation, coordination metadata parsing and canonical encoding."
+      },
+      {
+         "allowedImports" : [
+            "bytes",
+            "context",
+            "crypto/rand",
+            "errors",
+            "fmt",
+            "io",
+            "os",
+            "os/exec",
+            "path/filepath",
+            "reflect",
+            "regexp",
+            "slices",
+            "strconv",
+            "strings",
+            "syscall",
+            "time",
+            "unicode/utf8"
+         ],
+         "check" : "go test -run TestGit .",
+         "contracts" : "Open and operation-scoped repository; subprocesses, filesystem, clock and IDs.",
+         "dependsOn" : [
+            "records"
+         ],
+         "files" : [
+            "git.go",
+            "operation.go",
+            "git_metadata.go",
+            "repository.go",
+            "history.go",
+            "history_git.go",
+            "snapshot.go",
+            "process_unix.go",
+            "process_unsupported.go"
+         ],
+         "name" : "git-storage",
+         "nonResponsibility" : "CLI parsing, scheduling and caller execution permission.",
+         "responsibility" : "Bounded native Git, repository snapshots and metadata writes."
+      },
+      {
+         "allowedImports" : [
+            "bytes",
+            "context",
+            "encoding/json",
+            "errors",
+            "fmt",
+            "github.com/pelletier/go-toml/v2",
+            "io",
+            "os",
+            "path/filepath",
+            "regexp",
+            "slices",
+            "strings",
+            "time"
+         ],
+         "check" : "make test-cli",
+         "contracts" : "Client.Coordinate and Client.Author; remote CAS and clone-local mutations.",
+         "dependsOn" : [
+            "records",
+            "git-storage"
+         ],
+         "files" : [
+            "lifecycle.go",
+            "handoff.go",
+            "release.go",
+            "worktrees.go",
+            "authoring.go",
+            "authoring_files.go"
+         ],
+         "name" : "coordination",
+         "nonResponsibility" : "Execution supervision, scheduling, canonical completion before base integration.",
+         "responsibility" : "Conditional ownership, recovery, authoring receipts and worktree lifecycle."
+      },
+      {
+         "allowedImports" : [
+            "context",
+            "encoding/json",
+            "fmt",
+            "slices",
+            "strings",
+            "unicode",
+            "unicode/utf8"
+         ],
+         "check" : "make test-cli",
+         "contracts" : "Client.Query and Client.Show; fresh Git snapshots, schema-1 output.",
+         "dependsOn" : [
+            "records",
+            "git-storage",
+            "coordination"
+         ],
+         "files" : [
+            "query.go",
+            "native.go",
+            "overview.go",
+            "status.go"
+         ],
+         "name" : "inspection",
+         "nonResponsibility" : "CLI argument parsing and granting execution permission.",
+         "responsibility" : "Inventory queries, status, structured responses and human summaries."
+      },
+      {
+         "allowedImports" : [
+            "context",
+            "encoding/json",
+            "errors",
+            "fmt",
+            "github.com/utsuri-foundry/tsuzuri",
+            "io",
+            "os",
+            "os/signal",
+            "slices",
+            "strings",
+            "syscall",
+            "time"
+         ],
+         "check" : "go test ./cmd/tsuzuri",
+         "contracts" : "Standalone tsuzuri commands; stdin/stdout/stderr and context lifecycle.",
+         "dependsOn" : [
+            "inspection",
+            "coordination"
+         ],
+         "files" : [
+            "cmd/tsuzuri/main.go",
+            "cmd/tsuzuri/parse.go",
+            "cmd/tsuzuri/input_other.go",
+            "cmd/tsuzuri/input_unix.go"
+         ],
+         "name" : "cli",
+         "nonResponsibility" : "Ownership protocol implementation.",
+         "responsibility" : "CLI parsing, input bounds, signals, rendering and process exit."
+      },
+      {
+         "allowedImports" : [
+            "bytes",
+            "context",
+            "encoding/json",
+            "fmt",
+            "github.com/pelletier/go-toml/v2",
+            "go/parser",
+            "go/token",
+            "io",
+            "io/fs",
+            "os",
+            "path/filepath",
+            "slices",
+            "strconv",
+            "strings",
+            "time"
+         ],
+         "check" : "go test ./cmd/check-architecture",
+         "contracts" : "Local check command; bounded filesystem reads, no subprocesses.",
+         "dependsOn" : [],
+         "files" : [
+            "cmd/check-architecture/main.go",
+            "cmd/check-architecture/check.go"
+         ],
+         "name" : "architecture",
+         "nonResponsibility" : "Runtime coordination or whole-program semantic correctness.",
+         "responsibility" : "Repository source ownership, import, document, budget and exception validation."
+      },
+      {
+         "allowedImports" : [
+            "bytes",
+            "context",
+            "encoding/json",
+            "errors",
+            "fmt",
+            "io",
+            "os",
+            "os/exec",
+            "path/filepath",
+            "strings",
+            "sync",
+            "runtime",
+            "strconv",
+            "syscall",
+            "testing",
+            "time",
+            "github.com/utsuri-foundry/tsuzuri"
+         ],
+         "check" : "make verify interop",
+         "contracts" : "Disposable repositories, local remotes, optional Rust reference executable.",
+         "dependsOn" : [
+            "records",
+            "git-storage",
+            "coordination",
+            "inspection",
+            "cli",
+            "architecture"
+         ],
+         "files" : [
+            "git_test.go",
+            "operation_test.go",
+            "orphan_test.go",
+            "history_probe_test.go",
+            "history_test.go",
+            "protocol_test.go",
+            "push_test.go",
+            "parsers_test.go",
+            "cmd/tsuzuri/input_test.go",
+            "cmd/check-architecture/check_test.go",
+            "scripts/reproduce-stale-worker.sh",
+            "tests/cli/fixture_test.go",
+            "tests/cli/discovery_test.go",
+            "tests/cli/authoring_test.go",
+            "tests/cli/ownership_test.go",
+            "tests/cli/history_test.go",
+            "tests/cli/external_test.go",
+            "tests/cli/reconciliation_test.go",
+            "tests/cli/scan_test.go",
+            "tests/cli/race_test.go",
+            "tests/cli/norace_test.go",
+            "tests/cli/testdata/accept-reconciliation-git.sh",
+            "release_build_test.go",
+            "example_test.go",
+            "examples/quickstart.sh"
+         ],
+         "name" : "verification",
+         "nonResponsibility" : "Production behavior and production credentials.",
+         "responsibility" : "Regression fixtures, fault injection, fuzzing and released-client evidence."
+      },
+      {
+         "name" : "release-preparation",
+         "files" : [
+            "scripts/release-cli.sh"
+         ],
+         "allowedImports" : [],
+         "dependsOn" : [],
+         "responsibility" : "Export committed source and prepare identified local prerelease CLI artifacts.",
+         "nonResponsibility" : "Installation, signing, publication or migration.",
+         "contracts" : "make release-candidate; clean source, pinned compiler, bounded build, checksummed output.",
+         "check" : "make release-candidate VERSION=0.1.0-rc.2"
+      }
+   ],
+   "requiredDocuments" : [
+      "AGENTS.md",
+      "README.md",
+      "CONTRIBUTING.md",
+      "LICENSE",
+      "NOTICE",
+      "architecture-exceptions.json",
+      "docs/usage.md",
+      "docs/integration.md",
+      "docs/architecture/README.md",
+      "docs/licenses/go.txt",
+      "tests/README.md",
+      "docs/quickstart.md"
+   ],
+   "schema" : 1,
+   "sourceBudgets" : {
+      "facade" : {
+         "maximum" : 400,
+         "warning" : 250
+      },
+      "production" : {
+         "maximum" : 1200,
+         "warning" : 750
+      },
+      "test" : {
+         "maximum" : 1800,
+         "warning" : 1000
+      }
+   },
+   "sourceExtensions" : [
+      "rs",
+      "go",
+      "js",
+      "mjs",
+      "cjs",
+      "php",
+      "sh"
+   ],
+   "sourceRoots" : [
+      "."
+   ],
+   "status" : "active"
+}
