@@ -169,19 +169,19 @@ func (r *repository) tree(ctx context.Context, rev string, legacy, history bool)
 		}
 		return i, nil
 	}
-	cfg, e := r.show(ctx, commit, ".tsuzuri.toml")
-	if e != nil {
-		return nil, e
-	}
-	c, e := parseConfig(cfg)
-	if e != nil {
-		return nil, e
-	}
-	i := newInventory(c)
 	cfgID, e := r.oid(ctx, commit+":.tsuzuri.toml")
 	if e != nil {
 		return nil, e
 	}
+	configs, e := r.objects(ctx, []string{cfgID}, "blob")
+	if e != nil {
+		return nil, e
+	}
+	c, e := parseConfig(configs[0])
+	if e != nil {
+		return nil, e
+	}
+	i := newInventory(c)
 	i.Source = source("git-tree", c.RepositoryID)
 	i.Source.BaseObjectID = stringPtr(commit)
 	i.Source.ConfigurationObjectID = stringPtr(cfgID)

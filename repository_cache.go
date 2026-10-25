@@ -10,6 +10,7 @@ const maxCacheEntries = 4096
 const maxCacheBytes = 8 << 20
 
 type objectKey struct{ id, kind string }
+type ancestryKey struct{ ancestor, descendant string }
 type recordKey struct {
 	id              string
 	project, legacy bool
@@ -21,11 +22,12 @@ type parsedRecord struct {
 
 // Owned by one operation. Each content cache admits at most 8 MiB of input and
 // 4096 entries; parsed Go values add bounded overhead, not an exact heap limit.
-// Cached records are read-only; revision-specific validation is never cached here.
+// Cached records are read-only; each inventory still requires validation.
 type repositoryCache struct {
 	objects                  map[objectKey]string
 	records                  map[recordKey]parsedRecord
 	resolutions              map[string]string
+	firstParents             map[ancestryKey]struct{}
 	objectBytes, recordBytes int
 }
 

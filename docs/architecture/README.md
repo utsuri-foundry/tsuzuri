@@ -20,7 +20,10 @@ for cancellation, trust boundaries and recovery invariants.
 
 Each operation may reuse immutable object reads and parsed records. The object
 and record caches each admit at most 8 MiB of input and 4,096 entries; immutable
-revision resolutions have a 4,096-entry limit. Full caches fall back to ordinary
-reads and parsing. These are cache admission limits, not a total process-memory
-limit. Mutable refs, errors and revision-specific validation are not cached by
-this mechanism, and no cache survives the operation.
+revision resolutions and positive first-parent ancestry facts each have a
+4,096-entry limit. Ancestry facts come only from a completed history walk and
+are keyed by both commits; side branches and misses still use Git's full graph.
+Full caches fall back to ordinary reads and parsing. These are cache admission
+limits, not a total process-memory limit. Mutable refs and failures are never
+cached here. Every inventory still checks its configuration, paths and
+relationships; no cache survives the operation.
