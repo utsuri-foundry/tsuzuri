@@ -6,6 +6,8 @@
          "cmd/tsuzuri/parse.go",
          "cmd/tsuzuri/input_unix.go",
          "cmd/tsuzuri/input_other.go",
+         "cmd/tsuzuri/terminal_unix.go",
+         "cmd/tsuzuri/terminal_other.go",
          "cmd/check-architecture/main.go"
       ],
       "testPathPrefixes" : [
@@ -179,7 +181,8 @@
             "slices",
             "strings",
             "syscall",
-            "time"
+            "time",
+            "unsafe"
          ],
          "check" : "go test ./cmd/tsuzuri",
          "contracts" : "Standalone tsuzuri commands; stdin/stdout/stderr and context lifecycle.",
@@ -191,7 +194,9 @@
             "cmd/tsuzuri/main.go",
             "cmd/tsuzuri/parse.go",
             "cmd/tsuzuri/input_other.go",
-            "cmd/tsuzuri/input_unix.go"
+            "cmd/tsuzuri/input_unix.go",
+            "cmd/tsuzuri/terminal_unix.go",
+            "cmd/tsuzuri/terminal_other.go"
          ],
          "name" : "cli",
          "nonResponsibility" : "Ownership protocol implementation.",
@@ -266,6 +271,7 @@
             "push_test.go",
             "parsers_test.go",
             "cmd/tsuzuri/input_test.go",
+            "cmd/tsuzuri/terminal_test.go",
             "cmd/check-architecture/check_test.go",
             "scripts/reproduce-stale-worker.sh",
             "tests/cli/fixture_test.go",
@@ -297,7 +303,7 @@
          "responsibility" : "Export committed source and prepare identified local prerelease CLI artifacts.",
          "nonResponsibility" : "Installation, signing, publication or migration.",
          "contracts" : "make release-candidate; clean source, pinned compiler, bounded build, checksummed output.",
-         "check" : "make release-candidate VERSION=0.1.0-rc.2"
+         "check" : "make release-candidate VERSION=0.1.0-rc.3"
       }
    ],
    "requiredDocuments" : [

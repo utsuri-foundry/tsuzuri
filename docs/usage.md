@@ -92,6 +92,18 @@ tsuzuri show improve-search
 tsuzuri claim improve-search --worker developer-laptop
 ```
 
+`overview` lists unfinished work and claim issues. Completed/cancelled tasks and
+retained terminal claims appear as summary counts; `overview --json` includes
+their full details. Use `list --canonical-state done` to inspect completed tasks.
+Terminal colors are automatic; `NO_COLOR`, `TERM=dumb` or piped output disables
+them. Override with `--color always` or `--color never`.
+
+`stale-terminal` means a claim is retained for a task that is already `done` or
+`cancelled` on the canonical base; the overview calls these retained terminal
+claims. They are historical coordination evidence, not
+active ownership or incomplete work. A malformed claim or assignment remains a
+separate claim issue, even for a completed task.
+
 Continue in the branch and sibling worktree printed by `claim`. Commit the
 implementation and mark the task `done` with its resolution in the same change.
 Use your normal review/integration process. Completion is recognized only when

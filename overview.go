@@ -233,9 +233,9 @@ func renderOverview(q Query, s *snapshot, summary map[string]int, sections map[s
 	}
 	fmt.Fprintf(&out, "%s\n\nProject: %s\nBase: %s\nSnapshot: %s\n", title, textOr(nullable(q.Project), "all projects"), s.base, s.id)
 	if markdown {
-		fmt.Fprintf(&out, "\n| Claimable | Active | Waiting | Backlog | Blocked | Unavailable | Done | Cancelled |\n|---|---|---|---|---|---|---|---|\n| %d | %d | %d | %d | %d | %d | %d | %d |\n", summary["claimableNow"], summary["activeClaims"], summary["waitingOnDependencies"], summary["backlog"], summary["blocked"], summary["unavailable"], summary["done"], summary["cancelled"])
+		fmt.Fprintf(&out, "\n| Claimable | Active | Waiting | Backlog | Blocked | Unavailable | Done | Cancelled | Claim issues | Retained terminal claims |\n|---|---|---|---|---|---|---|---|---|---|\n| %d | %d | %d | %d | %d | %d | %d | %d | %d | %d |\n", summary["claimableNow"], summary["activeClaims"], summary["waitingOnDependencies"], summary["backlog"], summary["blocked"], summary["unavailable"], summary["done"], summary["cancelled"], len(issues), len(stale))
 	} else {
-		fmt.Fprintf(&out, "\nclaimable=%d  active=%d  waiting=%d  backlog=%d  blocked=%d  unavailable=%d  done=%d  cancelled=%d  claim_issues=%d  stale_terminal_claims=%d\n", summary["claimableNow"], summary["activeClaims"], summary["waitingOnDependencies"], summary["backlog"], summary["blocked"], summary["unavailable"], summary["done"], summary["cancelled"], len(issues), len(stale))
+		fmt.Fprintf(&out, "\nclaimable=%d  active=%d  waiting=%d  backlog=%d  blocked=%d  unavailable=%d  done=%d  cancelled=%d  claim_issues=%d  retained_terminal_claims=%d\n", summary["claimableNow"], summary["activeClaims"], summary["waitingOnDependencies"], summary["backlog"], summary["blocked"], summary["unavailable"], summary["done"], summary["cancelled"], len(issues), len(stale))
 	}
 	table := func(title, code string, headers []string, rows [][]string) {
 		if markdown {
@@ -304,6 +304,9 @@ func renderOverview(q Query, s *snapshot, summary map[string]int, sections map[s
 		}
 	}
 	for n, key := range overviewKeys {
+		if key == "done" || key == "cancelled" {
+			continue
+		}
 		tasks := sections[key]
 		headers, _ := overviewColumns(key, OverviewTask{})
 		rows := [][]string{}
@@ -314,22 +317,16 @@ func renderOverview(q Query, s *snapshot, summary map[string]int, sections map[s
 		tones := []string{"1;32", "1;36", "1;33", "1;34", "1;31", "1;31", "2", "2"}
 		table(overviewTitles[n], tones[n], headers, rows)
 	}
-	for _, group := range []struct {
-		title  string
-		values []OverviewIssue
-	}{{"Claim issues", issues}, {"Stale terminal claims", stale}} {
-		if len(group.values) == 0 {
-			continue
-		}
+	if len(issues) > 0 {
 		rows := [][]string{}
-		for _, c := range group.values {
+		for _, c := range issues {
 			detail := textOr(c.Error, strings.Join(c.Drift, ", "))
 			if c.Assignment != nil && c.Assignment.Error != nil {
 				detail += " " + *c.Assignment.Error
 			}
 			rows = append(rows, []string{c.TaskID, c.Status, detail})
 		}
-		table(group.title, "1;31", []string{"Task", "Status", "Detail"}, rows)
+		table("Claim issues", "1;31", []string{"Task", "Status", "Detail"}, rows)
 	}
 	return strings.TrimSpace(out.String())
 }

@@ -3,7 +3,10 @@
 package cli_test
 
 import (
+	"context"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -37,6 +40,13 @@ func TestOverviewReportsOneSnapshotAcrossEveryTaskSection(t *testing.T) {
 	}
 	contains(t, terminal.stdout, "\x1b[", false)
 	contains(t, terminal.stdout, "paused-task", false)
+	for _, hidden := range []string{"done-task", "cancelled-task", "\nDone (", "\nCancelled ("} {
+		contains(t, terminal.stdout, hidden, false)
+	}
+	contains(t, terminal.stdout, "done=1  cancelled=1", true)
+	piped := f.cli(f.clone, "overview")
+	success(t, piped)
+	contains(t, piped.stdout, "\x1b[", false)
 	colored := f.cli(f.clone, "overview", "--project", "tsuzuri", "--color", "always")
 	success(t, colored)
 	for _, part := range []string{"\x1b[1mTsuzuri overview\x1b[0m", "\x1b[1;32mClaimable now (1)\x1b[0m", "\x1b[1;33mp1"} {
@@ -49,6 +59,42 @@ func TestOverviewReportsOneSnapshotAcrossEveryTaskSection(t *testing.T) {
 		contains(t, markdown.stdout, part, true)
 	}
 	contains(t, markdown.stdout, "\x1b[", false)
+	contains(t, markdown.stdout, "done-task", false)
+	contains(t, markdown.stdout, "cancelled-task", false)
+}
+
+func TestOverviewAutomaticTerminalColor(t *testing.T) {
+	if _, err := exec.LookPath("script"); err != nil {
+		t.Fatal("PTY integration requires the platform script utility (provided by nix develop on Linux)")
+	}
+	f := newFixture(t)
+	for _, tc := range []struct {
+		name         string
+		env, options []string
+		colored      bool
+	}{
+		{"default", []string{"TERM=xterm-256color"}, nil, true},
+		{"auto", []string{"TERM=xterm-256color"}, []string{"--color", "auto"}, true},
+		{"NO_COLOR empty", []string{"TERM=xterm-256color", "NO_COLOR="}, nil, false},
+		{"dumb", []string{"TERM=dumb"}, nil, false},
+		{"always overrides environment", []string{"TERM=dumb", "NO_COLOR=1"}, []string{"--color", "always"}, true},
+		{"never", []string{"TERM=xterm-256color"}, []string{"--color", "never"}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			command := append([]string{binary, "overview"}, tc.options...)
+			args := append([]string{"-q", "/dev/null"}, command...)
+			if runtime.GOOS == "linux" {
+				for i, word := range command {
+					command[i] = "'" + strings.ReplaceAll(word, "'", "'\"'\"'") + "'"
+				}
+				args = []string{"-q", "-e", "-c", "exec " + strings.Join(command, " "), "/dev/null"}
+			}
+			out := execute(context.Background(), f.clone, append(append([]string{}, f.env...), tc.env...), "", "script", args...)
+			success(t, out)
+			contains(t, out.stdout, "Tsuzuri overview", true)
+			contains(t, out.stdout, "\x1b[", tc.colored)
+		})
+	}
 }
 func TestOverviewSurfacesInvalidClaimWithoutMarkingTaskClaimable(t *testing.T) {
 	f := newFixture(t)
@@ -70,6 +116,24 @@ func TestOverviewSeparatesSafeTerminalClaimsFromClaimIssues(t *testing.T) {
 	f.task("first-task", terminalTask("first-task", "p0", "done"))
 	f.commitPush("complete claimed task")
 	check(t, f.ok(f.clone, "overview"), map[string]any{"data.summary.claimIssues": 0, "data.summary.staleTerminalClaims": 1, "data.staleTerminalClaims.0.taskId": "first-task", "data.staleTerminalClaims.0.status": "stale-terminal"})
+	for _, options := range [][]string{nil, {"--format", "markdown"}} {
+		out := f.cli(f.clone, append([]string{"overview"}, options...)...)
+		success(t, out)
+		contains(t, out.stdout, "first-task", false)
+		contains(t, out.stdout, "Stale terminal claims (", false)
+		contains(t, out.stdout, "stale-terminal", false)
+		if len(options) == 0 {
+			contains(t, out.stdout, "retained_terminal_claims=1", true)
+		} else {
+			contains(t, out.stdout, "Retained terminal claims", true)
+		}
+	}
+	f.git(f.clone, "push", "origin", "main:"+assignmentRef)
+	check(t, f.ok(f.clone, "overview"), map[string]any{"data.summary.claimIssues": 1, "data.summary.staleTerminalClaims": 1})
+	out := f.cli(f.clone, "overview")
+	success(t, out)
+	contains(t, out.stdout, "Claim issues (1)", true)
+	contains(t, out.stdout, "first-task", true)
 }
 func TestDiscoversProjectsAndReportsCompatibility(t *testing.T) {
 	f := newFixture(t)

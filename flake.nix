@@ -13,7 +13,8 @@
       system: let
         pkgs = import nixpkgs {inherit system;};
         goVersion = builtins.replaceStrings ["\n"] [""] (builtins.readFile ./.go-version);
-        packages = with pkgs; [go gopls govulncheck gnumake stdenv.cc cacert git coreutils gnutar];
+        packages = with pkgs; [go gopls govulncheck gnumake stdenv.cc cacert git coreutils gnutar]
+          ++ lib.optionals stdenv.hostPlatform.isLinux [util-linux];
         shell = assert pkgs.go.version == goVersion;
           pkgs.mkShell {
             inherit packages;

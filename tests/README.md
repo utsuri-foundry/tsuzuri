@@ -4,12 +4,14 @@
 tests, race detection and builds. Tests use temporary repositories and local bare
 remotes, without production credentials or network services. Rust is not needed.
 
-`tests/cli/` exercises the executable as a separate process: 42 scenarios cover
+`tests/cli/` exercises the executable as a separate process. Scenarios cover
 structured output, authoring replay, concurrent claims, assignments, handoffs,
 worktrees, canonical history/completion and ambiguous writes. Its 32 accept
 reconciliation cases inject worker changes, pending handoffs, absent refs,
 unreadable/malformed responses and unchanged assignments before receipt writes.
 The Git wrapper under testdata/ is the retained fault-injection fixture.
+Terminal-color tests use the platform `script` utility to exercise a real
+pseudoterminal. The Linux development shell supplies it; macOS includes it.
 
 ```sh
 make test-cli                     # focused CLI suite; also in make verify
