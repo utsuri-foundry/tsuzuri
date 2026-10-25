@@ -17,3 +17,10 @@ Tasks/configuration are Markdown/TOML; claims, assignments and receipts are Git
 objects and refs. Native Git owns transport and conditional updates. Domain
 validation does not own execution authority. See [integration](../integration.md)
 for cancellation, trust boundaries and recovery invariants.
+
+Each operation may reuse immutable object reads and parsed records. The object
+and record caches each admit at most 8 MiB of input and 4,096 entries; immutable
+revision resolutions have a 4,096-entry limit. Full caches fall back to ordinary
+reads and parsing. These are cache admission limits, not a total process-memory
+limit. Mutable refs, errors and revision-specific validation are not cached by
+this mechanism, and no cache survives the operation.

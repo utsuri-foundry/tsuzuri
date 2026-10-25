@@ -43,6 +43,7 @@ type repository struct {
 	trees             map[string]*inventory
 	histories         map[string]bool
 	historyStats      historyStats
+	cache             repositoryCache
 }
 type gitOutput struct {
 	text, diagnostic string
@@ -155,8 +156,22 @@ func (r *repository) input(ctx context.Context, input string, env []string, args
 	return o.text, nil
 }
 func (r *repository) oid(ctx context.Context, rev string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", invalid("Git operation cancelled or timed out: %v", err).causedBy(err)
+	}
+	immutable := immutableRevision(rev)
+	if value, ok := r.cache.resolutions[rev]; immutable && ok {
+		return value, nil
+	}
 	s, e := r.run(ctx, "rev-parse", "--verify", rev)
-	return strings.TrimSpace(s), e
+	s = strings.TrimSpace(s)
+	if e == nil && immutable && validObject(s) && len(r.cache.resolutions) < maxCacheEntries {
+		if r.cache.resolutions == nil {
+			r.cache.resolutions = map[string]string{}
+		}
+		r.cache.resolutions[strings.Clone(rev)] = strings.Clone(s)
+	}
+	return s, e
 }
 func (r *repository) ref(ctx context.Context, ref string) (string, error) {
 	o, e := r.exec(ctx, "", nil, "show-ref", "--verify", "--quiet", ref)

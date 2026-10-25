@@ -45,6 +45,11 @@ func TestHistoryProbe(t *testing.T) {
 			var f testRepository
 			if source := os.Getenv("TSUZURI_HISTORY_SOURCE"); source != "" {
 				f = historyTargetFixture(t, source)
+			} else if mode == "claims" {
+				if n > 200 {
+					t.Fatal("claim probe size is bounded to 200; set TSUZURI_HISTORY_SIZE")
+				}
+				f = manyClaimFixture(t, n)
 			} else {
 				f = historyFixture(t, n, mode)
 			}
@@ -87,6 +92,7 @@ func TestHistoryProbe(t *testing.T) {
 				}
 				t.Logf("scan n=%d mode=%s trial=%d ms=%.3f processes=%d allocated_bytes=%d legacy_inventory_records=%d parsed_records=%d blob_bytes=%d", n, mode, trial, float64(elapsed.Microseconds())/1000, countHistoryGit(t, counter), after.TotalAlloc-before.TotalAlloc, parsed, r.historyStats.ParsedRecords, r.historyStats.BlobBytes)
 			}
+			var overviewData string
 			for _, b := range []struct{ name, path string }{{"baseline", baseline}, {"rust", rust}, {"candidate", candidate}} {
 				if b.path == "" {
 					continue
@@ -122,10 +128,21 @@ func TestHistoryProbe(t *testing.T) {
 							t.Fatalf("%s %s: %v", b.name, command, err)
 						}
 						var response struct {
-							OK bool `json:"ok"`
+							OK   bool            `json:"ok"`
+							Data json.RawMessage `json:"data"`
 						}
 						if err = json.Unmarshal(out, &response); err != nil || !response.OK {
 							t.Fatalf("invalid response %s: %v", b.name, err)
+						}
+						if mode == "claims" && command == "overview" && b.name != "rust" {
+							data, err := json.Marshal(response.Data)
+							if err != nil {
+								t.Fatal(err)
+							}
+							if overviewData != "" && string(data) != overviewData {
+								t.Fatalf("%s overview data differs from the reference", b.name)
+							}
+							overviewData = string(data)
 						}
 						rss := int64(-1)
 						if os.Getenv("TSUZURI_HISTORY_TIME") != "" {

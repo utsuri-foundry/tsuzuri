@@ -111,7 +111,7 @@ func physicalPath(root, path string) error {
 	}
 	return nil
 }
-func (r *repository) objects(ctx context.Context, ids []string, kind string) ([]string, error) {
+func (r *repository) readObjects(ctx context.Context, ids []string, kind string) ([]string, error) {
 	if len(ids) == 0 {
 		return []string{}, nil
 	}
@@ -216,7 +216,7 @@ func (r *repository) tree(ctx context.Context, rev string, legacy, history bool)
 		return nil, e
 	}
 	for idx, p := range paths {
-		if e = i.add(p, texts[idx], ids[idx], legacy); e != nil {
+		if e = r.addRecord(i, p, texts[idx], ids[idx], legacy); e != nil {
 			return nil, e
 		}
 	}

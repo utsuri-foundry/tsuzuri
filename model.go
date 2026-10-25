@@ -364,28 +364,38 @@ func (i *inventory) add(path, s, digest string, legacy bool) error {
 		if e != nil {
 			return e
 		}
-		if path != i.Config.TaskRoot+"/"+p.ID+"/project.md" {
-			return invalid("invalid project path %s", path)
-		}
-		if _, ok := i.Projects[p.ID]; ok {
-			return invalid("duplicate project %s", p.ID)
-		}
-		i.Projects[p.ID] = p
+		return i.addProject(p, path, s, digest)
 	} else if strings.HasSuffix(path, ".task.md") {
 		t, e := parseTask(s, path, legacy)
 		if e != nil {
 			return e
 		}
-		if path != fmt.Sprintf("%s/%s/tasks/%s.task.md", i.Config.TaskRoot, t.Project, t.ID) {
-			return invalid("invalid task path %s", path)
-		}
-		if _, ok := i.Tasks[t.ID]; ok {
-			return invalid("duplicate task %s", t.ID)
-		}
-		i.Tasks[t.ID] = t
-	} else {
-		return nil
+		return i.addTask(t, path, s, digest)
 	}
+	return nil
+}
+func (i *inventory) addProject(p Project, path, s, digest string) error {
+	if path != i.Config.TaskRoot+"/"+p.ID+"/project.md" {
+		return invalid("invalid project path %s", path)
+	}
+	if _, ok := i.Projects[p.ID]; ok {
+		return invalid("duplicate project %s", p.ID)
+	}
+	p.Path = path
+	i.Projects[p.ID] = p
+	i.Documents[path] = s
+	i.Digests[path] = digest
+	return nil
+}
+func (i *inventory) addTask(t Task, path, s, digest string) error {
+	if path != fmt.Sprintf("%s/%s/tasks/%s.task.md", i.Config.TaskRoot, t.Project, t.ID) {
+		return invalid("invalid task path %s", path)
+	}
+	if _, ok := i.Tasks[t.ID]; ok {
+		return invalid("duplicate task %s", t.ID)
+	}
+	t.Path = path
+	i.Tasks[t.ID] = t
 	i.Documents[path] = s
 	i.Digests[path] = digest
 	return nil
