@@ -192,6 +192,21 @@ func TestCorrectedTerminalHistoryRetainsRejections(t *testing.T) {
 		{"nonterminal-acceptance", "tasks/projects/example/tasks/other-task.task.md", "Acceptance", func(t *testing.T, f testRepository) {
 			historyWrite(t, f, "tasks/projects/example/tasks/other-task.task.md", strings.ReplaceAll(strings.ReplaceAll(testTask, "first-task", "other-task"), "# Acceptance", "# Checks"))
 		}},
+		{"duplicate-area", "tasks/projects/example/tasks/other-task.task.md", "registries", func(t *testing.T, f testRepository) {
+			historyWrite(t, f, "tasks/projects/example/tasks/other-task.task.md", strings.ReplaceAll(strings.ReplaceAll(testTask, "first-task", "other-task"), `areas = ["core"]`, `areas = ["core", "core"]`))
+		}},
+		{"duplicate-risk", "tasks/projects/example/tasks/other-task.task.md", "registries", func(t *testing.T, f testRepository) {
+			historyWrite(t, f, "tasks/projects/example/tasks/other-task.task.md", strings.ReplaceAll(strings.ReplaceAll(testTask, "first-task", "other-task"), "risks = []", `risks = ["core", "core"]`))
+		}},
+		{"missing-areas", "tasks/projects/example/tasks/other-task.task.md", "registries", func(t *testing.T, f testRepository) {
+			historyWrite(t, f, "tasks/projects/example/tasks/other-task.task.md", strings.ReplaceAll(strings.ReplaceAll(testTask, "first-task", "other-task"), "areas = [\"core\"]\n", ""))
+		}},
+		{"unsorted-dependencies", "tasks/projects/example/tasks/other-task.task.md", "registries", func(t *testing.T, f testRepository) {
+			historyWrite(t, f, "tasks/projects/example/tasks/other-task.task.md", strings.ReplaceAll(strings.ReplaceAll(testTask, "first-task", "other-task"), "blocked_by = []", `blocked_by = ["zeta", "alpha"]`))
+		}},
+		{"missing-risks", "tasks/projects/example/tasks/other-task.task.md", "registries", func(t *testing.T, f testRepository) {
+			historyWrite(t, f, "tasks/projects/example/tasks/other-task.task.md", strings.ReplaceAll(strings.ReplaceAll(testTask, "first-task", "other-task"), "risks = []\n", ""))
+		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := fixture(t)
@@ -207,6 +222,76 @@ func TestCorrectedTerminalHistoryRetainsRejections(t *testing.T) {
 			assertRecordError(t, err, bad, tc.path, tc.want)
 			if len(r.histories) != 0 || len(r.cache.firstParents) != 0 {
 				t.Fatal("failed replay supplied a validation or ancestry proof")
+			}
+		})
+	}
+}
+
+func TestCorrectedRegistryOrderHistoryRecovery(t *testing.T) {
+	isolatedGit(t)
+	for _, registry := range []string{"areas", "risks"} {
+		t.Run(registry, func(t *testing.T) {
+			f := fixture(t)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+			defer cancel()
+			config := strings.ReplaceAll(testConfig, `areas = ["core"]`, `areas = ["core", "docs", "tests"]`)
+			historyWrite(t, f, ".tsuzuri.toml", strings.ReplaceAll(config, "risks = []", `risks = ["docs", "tests"]`))
+			checkedGit(t, f.clone, "push", "origin", "main")
+			client := clientAt(t, f.clone)
+			claim := mustClaim(t, client, "original-worker")
+			other := "tasks/projects/example/tasks/other-task.task.md"
+			otherTask := func(values string) string {
+				areas, risks := `["docs"]`, values
+				if registry == "areas" {
+					areas, risks = values, "[]"
+				}
+				doc := strings.ReplaceAll(testTask, "first-task", "other-task")
+				doc = strings.ReplaceAll(doc, `areas = ["core"]`, "areas = "+areas)
+				return strings.ReplaceAll(doc, "risks = []", "risks = "+risks)
+			}
+			historyWrite(t, f, other, otherTask(`["tests", "docs"]`))
+			bad := checkedGit(t, f.clone, "rev-parse", "HEAD")
+			checkedGit(t, f.clone, "push", "origin", "main")
+			_, _, err := client.Show(ctx, "first-task")
+			assertRecordError(t, err, bad, other, "registries")
+			historyWrite(t, f, other, otherTask(`["docs", "tests"]`))
+			checkedGit(t, f.clone, "push", "origin", "main")
+			for _, q := range []Query{{Command: "validate"}, {Command: "validate", Source: "base"}, {Command: "next"}, {Command: "status"}, {Command: "overview"}} {
+				if _, err := client.Query(ctx, q); err != nil {
+					t.Fatalf("%+v after correction: %v", q, err)
+				}
+			}
+			view, _, err := client.Show(ctx, "first-task")
+			if err != nil || view.Claim == nil || !view.Claim.Valid || view.Claim.ClaimedTask.RecordDigest != claim.ClaimedTask.RecordDigest {
+				t.Fatalf("original authority changed: %+v, %v", view.Claim, err)
+			}
+			corrected, _, err := client.Show(ctx, "other-task")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, _, err = client.Claim(ctx, ClaimRequest{Task: "other-task", Worker: "other-worker", NoWorktree: true, ExpectedDigest: corrected.RecordDigest}); err != nil {
+				t.Fatalf("corrected task not claimable: %v", err)
+			}
+			// The unsorted revision never becomes a strictly valid tree, so it
+			// cannot serve as a claimed snapshot, even with a cached history proof.
+			r, _ := cachedRepository(t, f)
+			if _, err := r.tree(ctx, "HEAD", false, true); err != nil {
+				t.Fatal(err)
+			}
+			for _, legacy := range []bool{false, true} {
+				_, err := r.tree(ctx, bad, legacy, true)
+				assertRecordError(t, err, bad, other, "registries")
+			}
+			for _, name := range []string{"TSUZURI_HISTORY_BASELINE", "TSUZURI_RUST_BINARY"} {
+				if binary := os.Getenv(name); binary != "" {
+					command := exec.CommandContext(ctx, binary, "status", "--json")
+					command.Dir = cloneFixture(t, f, strings.ToLower(name))
+					output, err := command.CombinedOutput()
+					var exit *exec.ExitError
+					if !errors.As(err, &exit) || exit.ExitCode() != 3 || !strings.Contains(string(output), "registries") && !strings.Contains(string(output), registry) {
+						t.Fatalf("expected documented old-client refusal from %s: %v\n%s", name, err, output)
+					}
+				}
 			}
 		})
 	}
