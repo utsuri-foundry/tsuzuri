@@ -148,13 +148,13 @@ From v0.1.0-rc.6, first-parent replay accepts a historical task revision whose
 a task's ID, project, state and path, so the order of those lists cannot change
 what history proves. Sort the lists in a new canonical-base commit. Current and
 claimed records still require both lists sorted and unique, and every other
-historical check above still applies: `blocked_by` order, duplicate values and
-missing lists still fail in every revision.
+historical check above still applies: `blocked_by` order, duplicate area, risk
+or dependency values and missing lists still fail in every revision.
 
-As with corrected terminal records, older clients remain blocked on a store that
-once contained such a revision, and an original claimed snapshot containing one
-stays invalid. Use the same verification and recovery steps after a correction
-reaches the base.
+As with corrected terminal records, older clients, including v0.1.0-rc.5,
+remain blocked on a store that once contained such a revision, and an original
+claimed snapshot containing one stays invalid. Use the same verification and
+recovery steps after a correction reaches the base.
 
 ### Switching executables
 

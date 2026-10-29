@@ -195,6 +195,12 @@ func TestCorrectedTerminalHistoryRetainsRejections(t *testing.T) {
 		{"duplicate-area", "tasks/projects/example/tasks/other-task.task.md", "registries", func(t *testing.T, f testRepository) {
 			historyWrite(t, f, "tasks/projects/example/tasks/other-task.task.md", strings.ReplaceAll(strings.ReplaceAll(testTask, "first-task", "other-task"), `areas = ["core"]`, `areas = ["core", "core"]`))
 		}},
+		{"duplicate-risk", "tasks/projects/example/tasks/other-task.task.md", "registries", func(t *testing.T, f testRepository) {
+			historyWrite(t, f, "tasks/projects/example/tasks/other-task.task.md", strings.ReplaceAll(strings.ReplaceAll(testTask, "first-task", "other-task"), "risks = []", `risks = ["core", "core"]`))
+		}},
+		{"missing-areas", "tasks/projects/example/tasks/other-task.task.md", "registries", func(t *testing.T, f testRepository) {
+			historyWrite(t, f, "tasks/projects/example/tasks/other-task.task.md", strings.ReplaceAll(strings.ReplaceAll(testTask, "first-task", "other-task"), "areas = [\"core\"]\n", ""))
+		}},
 		{"unsorted-dependencies", "tasks/projects/example/tasks/other-task.task.md", "registries", func(t *testing.T, f testRepository) {
 			historyWrite(t, f, "tasks/projects/example/tasks/other-task.task.md", strings.ReplaceAll(strings.ReplaceAll(testTask, "first-task", "other-task"), "blocked_by = []", `blocked_by = ["zeta", "alpha"]`))
 		}},
@@ -267,19 +273,24 @@ func TestCorrectedRegistryOrderHistoryRecovery(t *testing.T) {
 				t.Fatalf("corrected task not claimable: %v", err)
 			}
 			// The unsorted revision never becomes a strictly valid tree, so it
-			// cannot serve as a claimed snapshot.
+			// cannot serve as a claimed snapshot, even with a cached history proof.
 			r, _ := cachedRepository(t, f)
+			if _, err := r.tree(ctx, "HEAD", false, true); err != nil {
+				t.Fatal(err)
+			}
 			for _, legacy := range []bool{false, true} {
 				_, err := r.tree(ctx, bad, legacy, true)
 				assertRecordError(t, err, bad, other, "registries")
 			}
-			if binary := os.Getenv("TSUZURI_HISTORY_BASELINE"); binary != "" {
-				command := exec.CommandContext(ctx, binary, "status", "--json")
-				command.Dir = cloneFixture(t, f, "baseline")
-				output, err := command.CombinedOutput()
-				var exit *exec.ExitError
-				if !errors.As(err, &exit) || exit.ExitCode() != 3 || !strings.Contains(string(output), "registries") {
-					t.Fatalf("expected documented old-client refusal: %v\n%s", err, output)
+			for _, name := range []string{"TSUZURI_HISTORY_BASELINE", "TSUZURI_RUST_BINARY"} {
+				if binary := os.Getenv(name); binary != "" {
+					command := exec.CommandContext(ctx, binary, "status", "--json")
+					command.Dir = cloneFixture(t, f, strings.ToLower(name))
+					output, err := command.CombinedOutput()
+					var exit *exec.ExitError
+					if !errors.As(err, &exit) || exit.ExitCode() != 3 || !strings.Contains(string(output), "registries") && !strings.Contains(string(output), registry) {
+						t.Fatalf("expected documented old-client refusal from %s: %v\n%s", name, err, output)
+					}
 				}
 			}
 		})

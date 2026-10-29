@@ -93,6 +93,8 @@ func ordered(s []string) bool {
 	}
 	return true
 }
+
+// unique reports distinct values in any order, deliberately weaker than ordered.
 func unique(s []string) bool { return ordered(slices.Sorted(slices.Values(s))) }
 func decodeTOML(s string, v any) error {
 	if e := toml.NewDecoder(strings.NewReader(s)).DisallowUnknownFields().Decode(v); e != nil {

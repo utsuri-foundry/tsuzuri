@@ -53,5 +53,8 @@ func FuzzTaskDocument(f *testing.F) {
 		if historyErr == nil && !terminal(historical.State) && strictErr != nil && ordered(historical.Areas) && ordered(historical.Risks) {
 			t.Fatal("historical parsing relaxed a nonterminal record")
 		}
+		if historyErr == nil && (!unique(historical.Areas) || !unique(historical.Risks) || !ordered(historical.BlockedBy)) {
+			t.Fatal("historical parsing accepted duplicate or unordered dependency values")
+		}
 	})
 }
