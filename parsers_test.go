@@ -37,6 +37,8 @@ func FuzzTaskDocument(f *testing.F) {
 	f.Add(strings.ReplaceAll(historyTerminal(), "# Resolution", "# Delivery"))
 	f.Add("+++\nschema = 1\nid = \"task\"\nproject = \"project\"\ntitle = \"Task\"\nkind = \"delivery\"\nstate = \"ready\"\npriority = \"p1\"\nblocked_by = []\nareas = []\nrisks = []\ncreated = 2026-10-24\n+++\n\n# Outcome\n\nChange\n\n# Acceptance\n\n- Tested\n")
 	f.Add("+++\nid = [\n+++\n# Outcome\n")
+	f.Add(strings.ReplaceAll(testTask, `areas = ["core"]`, `areas = ["core", "build"]`))
+	f.Add(strings.ReplaceAll(testTask, `areas = ["core"]`, `areas = ["core", "core"]`))
 	f.Fuzz(func(t *testing.T, body string) {
 		if len(body) > maxRecord {
 			t.Skip()
@@ -47,7 +49,8 @@ func FuzzTaskDocument(f *testing.F) {
 		if strictErr == nil && (historyErr != nil || strict.ID != historical.ID || strict.State != historical.State) {
 			t.Fatal("historical parsing changed valid identity or state")
 		}
-		if historyErr == nil && !terminal(historical.State) && strictErr != nil {
+		// Only the order of areas and risks may differ for a nonterminal record.
+		if historyErr == nil && !terminal(historical.State) && strictErr != nil && ordered(historical.Areas) && ordered(historical.Risks) {
 			t.Fatal("historical parsing relaxed a nonterminal record")
 		}
 	})

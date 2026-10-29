@@ -93,6 +93,7 @@ func ordered(s []string) bool {
 	}
 	return true
 }
+func unique(s []string) bool { return ordered(slices.Sorted(slices.Values(s))) }
 func decodeTOML(s string, v any) error {
 	if e := toml.NewDecoder(strings.NewReader(s)).DisallowUnknownFields().Decode(v); e != nil {
 		return invalid("invalid TOML: %v", e).causedBy(e)
@@ -233,7 +234,7 @@ func parseProject(s, path string) (Project, error) {
 	return p, nil
 }
 func parseTask(s, path string, legacy bool) (Task, error) {
-	t, body, e := parseTaskFields(s, legacy)
+	t, body, e := parseTaskFields(s, legacy, false)
 	if e != nil {
 		return t, e
 	}
@@ -249,17 +250,19 @@ func parseTask(s, path string, legacy bool) (Task, error) {
 	return t, nil
 }
 
-// Historical terminal prose may be corrected later; current and claimed trees
-// always use parseTask. Nonterminal acceptance remains strict in every revision.
+// Historical terminal prose and the order of areas and risks may be corrected
+// later; current and claimed trees always use parseTask. Replay reads only
+// identity, project, state and path, which neither correction can change.
+// Nonterminal acceptance remains strict in every revision.
 func parseHistoricalTask(s string) (Task, error) {
-	t, body, e := parseTaskFields(s, true)
+	t, body, e := parseTaskFields(s, true, true)
 	if e != nil || terminal(t.State) {
 		return t, e
 	}
 	return t, sections(body, "Outcome", "Acceptance")
 }
 
-func parseTaskFields(s string, legacy bool) (Task, string, error) {
+func parseTaskFields(s string, legacy, historical bool) (Task, string, error) {
 	var t Task
 	front, body, e := document(s)
 	if e != nil {
@@ -279,7 +282,11 @@ func parseTaskFields(s string, legacy bool) (Task, string, error) {
 	if !validID(t.Project) || !slices.Contains([]string{"backlog", "ready", "blocked", "done", "cancelled"}, t.State) || !slices.Contains([]string{"p0", "p1", "p2", "p3"}, t.Priority) {
 		return t, "", invalid("invalid task project, state or priority")
 	}
-	if t.BlockedBy == nil || t.Areas == nil || t.Risks == nil || !ordered(t.BlockedBy) || !ordered(t.Areas) || !ordered(t.Risks) {
+	listed := ordered
+	if historical {
+		listed = unique
+	}
+	if t.BlockedBy == nil || t.Areas == nil || t.Risks == nil || !ordered(t.BlockedBy) || !listed(t.Areas) || !listed(t.Risks) {
 		return t, "", invalid("task registries must be supplied, sorted and unique")
 	}
 	t.Created = t.CreatedDate.String()
