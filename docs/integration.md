@@ -141,20 +141,22 @@ the message and `Error.Details` (`commit`, `path`); existing error classificatio
 are preserved. Object-read, framing and aggregate-bound failures may be reported
 at operation level when no individual record can be identified.
 
-### Corrected area and risk order
+### Corrected list order
 
 From v0.1.0-rc.6, first-parent replay accepts a historical task revision whose
-`areas` or `risks` are unique but out of lexicographic order. Replay reads only
-a task's ID, project, state and path, so the order of those lists cannot change
-what history proves. Sort the lists in a new canonical-base commit. Current and
-claimed records still require both lists sorted and unique, and every other
-historical check above still applies: `blocked_by` order, duplicate area, risk
-or dependency values and missing lists still fail in every revision.
+`areas` or `risks` are unique but out of lexicographic order, and from
+v0.1.0-rc.7 the same holds for `blocked_by`. Replay reads only a task's ID,
+project, state and path, so the order of those lists cannot change what history
+proves. Sort the lists in a new canonical-base commit. Current and claimed
+records still require all three lists sorted and unique, and every other
+historical check above still applies: duplicate area, risk or dependency values
+and missing lists still fail in every revision.
 
-As with corrected terminal records, older clients, including v0.1.0-rc.5,
-remain blocked on a store that once contained such a revision, and an original
-claimed snapshot containing one stays invalid. Use the same verification and
-recovery steps after a correction reaches the base.
+As with corrected terminal records, older clients remain blocked on a store that
+once contained such a revision (v0.1.0-rc.5 for any of the lists, v0.1.0-rc.6
+for `blocked_by`), and an original claimed snapshot containing one stays
+invalid. Use the same verification and recovery steps after a correction reaches
+the base.
 
 ### Switching executables
 

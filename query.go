@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-const Version = "0.1.0-rc.6"
+const Version = "0.1.0-rc.7"
 
 // Result is the schema-1 automation envelope. Human output is a rendering only.
 type Result struct {

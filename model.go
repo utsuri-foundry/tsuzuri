@@ -252,9 +252,9 @@ func parseTask(s, path string, legacy bool) (Task, error) {
 	return t, nil
 }
 
-// Historical terminal prose and the order of areas and risks may be corrected
-// later; current and claimed trees always use parseTask. Replay reads only
-// identity, project, state and path, which neither correction can change.
+// Historical terminal prose and the order of areas, risks and blocked_by may be
+// corrected later; current and claimed trees always use parseTask. Replay reads
+// only identity, project, state and path, which neither correction can change.
 // Nonterminal acceptance remains strict in every revision.
 func parseHistoricalTask(s string) (Task, error) {
 	t, body, e := parseTaskFields(s, true, true)
@@ -288,7 +288,7 @@ func parseTaskFields(s string, legacy, historical bool) (Task, string, error) {
 	if historical {
 		listed = unique
 	}
-	if t.BlockedBy == nil || t.Areas == nil || t.Risks == nil || !ordered(t.BlockedBy) || !listed(t.Areas) || !listed(t.Risks) {
+	if t.BlockedBy == nil || t.Areas == nil || t.Risks == nil || !listed(t.BlockedBy) || !listed(t.Areas) || !listed(t.Risks) {
 		return t, "", invalid("task registries must be supplied, sorted and unique")
 	}
 	t.Created = t.CreatedDate.String()

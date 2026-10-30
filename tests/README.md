@@ -51,10 +51,10 @@ and run `go test -count=1 -run 'TestCorrectedTerminalHistoryRecovery' .`.
 That test expects rc.4 and the optional v0.3.1 reference to reject the repaired
 history; the candidate must accept it without replacing existing ownership.
 The other historical replay cases retain their existing expectations.
-`TestCorrectedRegistryOrderHistoryRecovery` covers corrected `areas` and `risks`
-order the same way; with `TSUZURI_HISTORY_BASELINE` set to rc.5, or
-`TSUZURI_RUST_BINARY` set to a Rust reference, it expects that executable to
-reject the repaired history.
+`TestCorrectedRegistryOrderHistoryRecovery` covers corrected `areas`, `risks`
+and `blocked_by` order the same way; with `TSUZURI_HISTORY_BASELINE` set to
+rc.6 (which still rejects corrected `blocked_by`), or `TSUZURI_RUST_BINARY` set
+to a Rust reference, it expects that executable to reject the repaired history.
 
 Tests target Linux and macOS. Cross-builds do not prove native execution or real
 credential-helper behavior. Record omitted platforms and checks honestly. Fuzz
