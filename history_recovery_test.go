@@ -201,8 +201,8 @@ func TestCorrectedTerminalHistoryRetainsRejections(t *testing.T) {
 		{"missing-areas", "tasks/projects/example/tasks/other-task.task.md", "registries", func(t *testing.T, f testRepository) {
 			historyWrite(t, f, "tasks/projects/example/tasks/other-task.task.md", strings.ReplaceAll(strings.ReplaceAll(testTask, "first-task", "other-task"), "areas = [\"core\"]\n", ""))
 		}},
-		{"unsorted-dependencies", "tasks/projects/example/tasks/other-task.task.md", "registries", func(t *testing.T, f testRepository) {
-			historyWrite(t, f, "tasks/projects/example/tasks/other-task.task.md", strings.ReplaceAll(strings.ReplaceAll(testTask, "first-task", "other-task"), "blocked_by = []", `blocked_by = ["zeta", "alpha"]`))
+		{"duplicate-dependency", "tasks/projects/example/tasks/other-task.task.md", "registries", func(t *testing.T, f testRepository) {
+			historyWrite(t, f, "tasks/projects/example/tasks/other-task.task.md", strings.ReplaceAll(strings.ReplaceAll(testTask, "first-task", "other-task"), "blocked_by = []", `blocked_by = ["first-task", "first-task"]`))
 		}},
 		{"missing-risks", "tasks/projects/example/tasks/other-task.task.md", "registries", func(t *testing.T, f testRepository) {
 			historyWrite(t, f, "tasks/projects/example/tasks/other-task.task.md", strings.ReplaceAll(strings.ReplaceAll(testTask, "first-task", "other-task"), "risks = []\n", ""))
@@ -229,32 +229,44 @@ func TestCorrectedTerminalHistoryRetainsRejections(t *testing.T) {
 
 func TestCorrectedRegistryOrderHistoryRecovery(t *testing.T) {
 	isolatedGit(t)
-	for _, registry := range []string{"areas", "risks"} {
+	for _, tc := range []struct{ registry, unsorted, sorted string }{
+		{"areas", `["tests", "docs"]`, `["docs", "tests"]`},
+		{"risks", `["tests", "docs"]`, `["docs", "tests"]`},
+		{"blocked_by", `["zeta-task", "alpha-task"]`, `["alpha-task", "zeta-task"]`},
+	} {
+		registry := tc.registry
 		t.Run(registry, func(t *testing.T) {
 			f := fixture(t)
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			defer cancel()
 			config := strings.ReplaceAll(testConfig, `areas = ["core"]`, `areas = ["core", "docs", "tests"]`)
 			historyWrite(t, f, ".tsuzuri.toml", strings.ReplaceAll(config, "risks = []", `risks = ["docs", "tests"]`))
+			// Finished dependencies keep the corrected task claimable.
+			for _, id := range []string{"alpha-task", "zeta-task"} {
+				historyWrite(t, f, "tasks/projects/example/tasks/"+id+".task.md", strings.ReplaceAll(historyTerminal(), "first-task", id))
+			}
 			checkedGit(t, f.clone, "push", "origin", "main")
 			client := clientAt(t, f.clone)
 			claim := mustClaim(t, client, "original-worker")
 			other := "tasks/projects/example/tasks/other-task.task.md"
 			otherTask := func(values string) string {
-				areas, risks := `["docs"]`, values
-				if registry == "areas" {
-					areas, risks = values, "[]"
-				}
 				doc := strings.ReplaceAll(testTask, "first-task", "other-task")
-				doc = strings.ReplaceAll(doc, `areas = ["core"]`, "areas = "+areas)
-				return strings.ReplaceAll(doc, "risks = []", "risks = "+risks)
+				switch registry {
+				case "areas":
+					return strings.ReplaceAll(doc, `areas = ["core"]`, "areas = "+values)
+				case "risks":
+					doc = strings.ReplaceAll(doc, `areas = ["core"]`, `areas = ["docs"]`)
+					return strings.ReplaceAll(doc, "risks = []", "risks = "+values)
+				default:
+					return strings.ReplaceAll(doc, "blocked_by = []", "blocked_by = "+values)
+				}
 			}
-			historyWrite(t, f, other, otherTask(`["tests", "docs"]`))
+			historyWrite(t, f, other, otherTask(tc.unsorted))
 			bad := checkedGit(t, f.clone, "rev-parse", "HEAD")
 			checkedGit(t, f.clone, "push", "origin", "main")
 			_, _, err := client.Show(ctx, "first-task")
 			assertRecordError(t, err, bad, other, "registries")
-			historyWrite(t, f, other, otherTask(`["docs", "tests"]`))
+			historyWrite(t, f, other, otherTask(tc.sorted))
 			checkedGit(t, f.clone, "push", "origin", "main")
 			for _, q := range []Query{{Command: "validate"}, {Command: "validate", Source: "base"}, {Command: "next"}, {Command: "status"}, {Command: "overview"}} {
 				if _, err := client.Query(ctx, q); err != nil {

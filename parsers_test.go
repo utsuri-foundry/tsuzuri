@@ -39,6 +39,8 @@ func FuzzTaskDocument(f *testing.F) {
 	f.Add("+++\nid = [\n+++\n# Outcome\n")
 	f.Add(strings.ReplaceAll(testTask, `areas = ["core"]`, `areas = ["core", "build"]`))
 	f.Add(strings.ReplaceAll(testTask, `areas = ["core"]`, `areas = ["core", "core"]`))
+	f.Add(strings.ReplaceAll(testTask, "blocked_by = []", `blocked_by = ["zeta", "alpha"]`))
+	f.Add(strings.ReplaceAll(testTask, "blocked_by = []", `blocked_by = ["alpha", "alpha"]`))
 	f.Fuzz(func(t *testing.T, body string) {
 		if len(body) > maxRecord {
 			t.Skip()
@@ -49,12 +51,13 @@ func FuzzTaskDocument(f *testing.F) {
 		if strictErr == nil && (historyErr != nil || strict.ID != historical.ID || strict.State != historical.State) {
 			t.Fatal("historical parsing changed valid identity or state")
 		}
-		// Only the order of areas and risks may differ for a nonterminal record.
-		if historyErr == nil && !terminal(historical.State) && strictErr != nil && ordered(historical.Areas) && ordered(historical.Risks) {
+		// Only the order of areas, risks and blocked_by may differ for a
+		// nonterminal record.
+		if historyErr == nil && !terminal(historical.State) && strictErr != nil && ordered(historical.Areas) && ordered(historical.Risks) && ordered(historical.BlockedBy) {
 			t.Fatal("historical parsing relaxed a nonterminal record")
 		}
-		if historyErr == nil && (!unique(historical.Areas) || !unique(historical.Risks) || !ordered(historical.BlockedBy)) {
-			t.Fatal("historical parsing accepted duplicate or unordered dependency values")
+		if historyErr == nil && (!unique(historical.Areas) || !unique(historical.Risks) || !unique(historical.BlockedBy)) {
+			t.Fatal("historical parsing accepted duplicate registry or dependency values")
 		}
 	})
 }

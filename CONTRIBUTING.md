@@ -50,7 +50,7 @@ in [tests](tests/README.md).
 From a clean committed tree, run:
 
 ```sh
-nix develop --command make release-candidate VERSION=0.1.0-rc.6
+nix develop --command make release-candidate VERSION=0.1.0-rc.7
 ```
 
 The version must match `Version` in source. Artifacts under `build/releases/`
